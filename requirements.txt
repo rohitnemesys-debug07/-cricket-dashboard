@@ -1,3 +1,8 @@
+<<<<<<< HEAD
 streamlit
 pandas
+=======
+streamlit
+pandas
+>>>>>>> 995b71d784e51988894b4cec7a1591e9bfa22c04
 requests

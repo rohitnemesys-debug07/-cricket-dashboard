@@ -1,3 +1,4 @@
+
 from db import get_connection
 import streamlit as st
 import pandas as pd
@@ -161,3 +162,4 @@ elif menu == "Graphs":
         st.bar_chart(result)
     else:
         st.warning("No data to display")
+
