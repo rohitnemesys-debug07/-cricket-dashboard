@@ -43,11 +43,11 @@ def create_tables():
 create_tables()
 
 # =========================
-# SIDEBAR
+# MENU
 # =========================
 menu = st.sidebar.selectbox(
     "Navigation",
-    ["Home", "Live Matches", "Saved Matches", "Top Players", "SQL Analytics", "CRUD", "Graphs"]
+    ["Home", "Live Matches", "Saved Matches", "Top Players", "SQL Analytics", "SQL Practice", "CRUD", "Graphs"]
 )
 
 # =========================
@@ -56,18 +56,27 @@ menu = st.sidebar.selectbox(
 if menu == "Home":
     st.title("🏏 Cricbuzz LiveStats Dashboard")
 
+    st.markdown("""
+    ### 📌 Project Overview
+    - Live cricket data using API
+    - SQL-based analytics
+    - CRUD operations
+    - Interactive dashboard
+
+    ### 🛠️ Tech Stack
+    Python • Streamlit • PostgreSQL • REST API
+    """)
+
     conn = get_connection()
 
     if conn:
         try:
-            df_matches = pd.read_sql("SELECT COUNT(*) as count FROM matches", conn)
-            matches_count = df_matches.iloc[0]["count"]
+            matches_count = pd.read_sql("SELECT COUNT(*) as count FROM matches", conn).iloc[0]["count"]
         except:
             matches_count = 0
 
         try:
-            df_players = pd.read_sql("SELECT COUNT(*) as count FROM players", conn)
-            players_count = df_players.iloc[0]["count"]
+            players_count = pd.read_sql("SELECT COUNT(*) as count FROM players", conn).iloc[0]["count"]
         except:
             players_count = 0
 
@@ -80,39 +89,42 @@ if menu == "Home":
     else:
         st.error("Database not connected")
 
-    st.write("📊 Real-time cricket analytics platform")
-
 # =========================
 # LIVE MATCHES
 # =========================
 elif menu == "Live Matches":
 
-    data = get_matches()
+    with st.spinner("Fetching live matches..."):
+        data = get_matches()
+
     matches_list = []
 
-    for match_type in data.get("typeMatches", []):
-        for series in match_type.get("seriesMatches", []):
-            matches = series.get("seriesAdWrapper", {}).get("matches", [])
+    for match in data:
+        name = match.get("name", "")
 
-            for match in matches:
-                info = match.get("matchInfo", {})
+        if " vs " in name:
+            team1, team2 = name.split(" vs ")
+        else:
+            team1, team2 = name, ""
 
-                matches_list.append({
-                    "team1": info.get("team1", {}).get("teamName", ""),
-                    "team2": info.get("team2", {}).get("teamName", ""),
-                    "status": info.get("status", "")
-                })
+        matches_list.append({
+            "team1": team1,
+            "team2": team2,
+            "status": match.get("status", "")
+        })
 
-    df = pd.DataFrame(matches_list[:5])
+    df = pd.DataFrame(matches_list[:10])
+    st.subheader("🏏 Live Matches")
     st.table(df)
 
     if st.button("Save Matches"):
+
         conn = get_connection()
 
         if conn:
             cur = conn.cursor()
 
-            for match in matches_list[:5]:
+            for match in matches_list[:10]:
                 cur.execute("""
                 INSERT INTO matches (team1, team2, status)
                 VALUES (%s, %s, %s)
@@ -129,8 +141,9 @@ elif menu == "Live Matches":
             st.success("✅ Saved Successfully!")
 
         else:
-            st.error("❌ Database not connected")
-
+            st.error("Database not connected")
+    if df.empty:
+      st.warning("⚠️ Live API unavailable → Showing sample data")
 # =========================
 # SAVED MATCHES
 # =========================
@@ -150,20 +163,47 @@ elif menu == "Saved Matches":
 # =========================
 elif menu == "Top Players":
 
+    if st.button("Load Sample Players"):
+        conn = get_connection()
+        if conn:
+            cur = conn.cursor()
+
+            cur.execute("""
+            INSERT INTO players (name, team, role, runs, wickets) VALUES
+            ('Virat Kohli', 'India', 'Batsman', 12000, 4),
+            ('Rohit Sharma', 'India', 'Batsman', 10000, 8),
+            ('Ben Stokes', 'England', 'All-rounder', 6000, 200),
+            ('Hardik Pandya', 'India', 'All-rounder', 4000, 150),
+            ('Jasprit Bumrah', 'India', 'Bowler', 200, 300)
+            ON CONFLICT DO NOTHING;
+            """)
+
+            conn.commit()
+            conn.close()
+
+            st.success("Sample Players Loaded ✅")
+
+    search = st.text_input("Search Player")
+
     conn = get_connection()
 
     if conn:
-        query = """
+        df = pd.read_sql("""
         SELECT name, team, runs, wickets
         FROM players
         ORDER BY runs DESC
-        LIMIT 10;
-        """
+        """, conn)
 
-        df = pd.read_sql(query, conn)
         conn.close()
 
-        st.table(df)
+        if search:
+            df = df[df["name"].str.contains(search, case=False)]
+
+        st.table(df.head(10))
+
+        if not df.empty:
+            st.write(f"🔥 Top Player: {df.iloc[0]['name']}")
+
     else:
         st.error("Database not connected")
 
@@ -178,78 +218,67 @@ elif menu == "SQL Analytics":
         option = st.selectbox("Choose Query", [
             "Matches per Team",
             "Top Run Scorers",
-            "All-rounders Performance",
-            "Team Total Runs",
-            "Top Wicket Takers",
-            "Top All-Rounder (Combined Score)"
+            "All-rounders",
+            "Team Runs",
+            "Top Wickets",
+            "Best All-rounder"
         ])
 
-        if option == "Matches per Team":
-            query = """
-            SELECT team, COUNT(*) AS matches
-            FROM (
+        queries = {
+            "Matches per Team": """
+            SELECT team, COUNT(*) FROM (
                 SELECT team1 AS team FROM matches
                 UNION ALL
                 SELECT team2 FROM matches
-            ) t
-            GROUP BY team
-            ORDER BY matches DESC;
-            """
+            ) t GROUP BY team ORDER BY COUNT(*) DESC
+            """,
 
-        elif option == "Top Run Scorers":
-            query = """
-            SELECT name, runs
-            FROM players
-            ORDER BY runs DESC
-            LIMIT 5;
-            """
+            "Top Run Scorers": "SELECT name, runs FROM players ORDER BY runs DESC LIMIT 5",
 
-        elif option == "All-rounders Performance":
-            query = """
-            SELECT name, runs, wickets
-            FROM players
-            WHERE role = 'All-rounder'
-            ORDER BY runs DESC;
-            """
+            "All-rounders": "SELECT name, runs, wickets FROM players WHERE role='All-rounder'",
 
-        elif option == "Team Total Runs":
-            query = """
-            SELECT team, SUM(runs) as total_runs
-            FROM players
-            GROUP BY team
-            ORDER BY total_runs DESC;
-            """
+            "Team Runs": "SELECT team, SUM(runs) FROM players GROUP BY team",
 
-        elif option == "Top Wicket Takers":
-            query = """
-            SELECT name, wickets
-            FROM players
-            ORDER BY wickets DESC
-            LIMIT 5;
-            """
+            "Top Wickets": "SELECT name, wickets FROM players ORDER BY wickets DESC LIMIT 5",
 
-        else:
-            query = """
-            SELECT name,
-                   (runs * 0.01 + wickets * 2) AS performance_score
-            FROM players
-            ORDER BY performance_score DESC
-            LIMIT 5;
+            "Best All-rounder": """
+            SELECT name, (runs*0.01 + wickets*2) AS score
+            FROM players ORDER BY score DESC LIMIT 5
             """
+        }
 
-        df = pd.read_sql(query, conn)
+        df = pd.read_sql(queries[option], conn)
         conn.close()
 
         st.dataframe(df)
 
         if not df.empty:
-            st.write(f"📊 Insight: Top result → {df.iloc[0][0]}")
+            st.success(f"🔥 Insight: {df.iloc[0][0]} is leading")
 
     else:
         st.error("Database not connected")
 
 # =========================
-# CRUD OPERATIONS
+# SQL PRACTICE
+# =========================
+elif menu == "SQL Practice":
+
+    st.subheader("🧠 SQL Practice")
+
+    query = st.text_area("Write your SQL query:")
+
+    if st.button("Run Query"):
+        conn = get_connection()
+        if conn:
+            try:
+                df = pd.read_sql(query, conn)
+                st.dataframe(df)
+            except Exception as e:
+                st.error(f"Error: {e}")
+            conn.close()
+
+# =========================
+# CRUD
 # =========================
 elif menu == "CRUD":
 
@@ -266,7 +295,6 @@ elif menu == "CRUD":
 
         if conn:
             cur = conn.cursor()
-
             cur.execute("""
             INSERT INTO players (name, team, role, runs, wickets)
             VALUES (%s, %s, %s, %s, %s)
@@ -275,26 +303,7 @@ elif menu == "CRUD":
             conn.commit()
             conn.close()
 
-            st.success("Player Added")
-        else:
-            st.error("Database not connected")
-
-    st.subheader("Delete Player")
-    player_id = st.number_input("Player ID", 0)
-
-    if st.button("Delete"):
-        conn = get_connection()
-
-        if conn:
-            cur = conn.cursor()
-
-            cur.execute("DELETE FROM players WHERE id=%s", (player_id,))
-            conn.commit()
-            conn.close()
-
-            st.success("Deleted")
-        else:
-            st.error("Database not connected")
+            st.success("✅ Player Added")
 
 # =========================
 # GRAPHS
@@ -309,14 +318,11 @@ elif menu == "Graphs":
 
         conn.close()
 
-        st.subheader("🏏 Top Run Scorers")
+        st.subheader("🏏 Runs")
         st.bar_chart(df_runs.set_index("name"))
 
-        st.subheader("🎯 Top Wicket Takers")
+        st.subheader("🎯 Wickets")
         st.bar_chart(df_wickets.set_index("name"))
-
-        if not df_runs.empty:
-            st.write(f"🔥 Insight: {df_runs.iloc[0]['name']} is the highest run scorer")
 
     else:
         st.error("Database not connected")
