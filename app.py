@@ -4,8 +4,10 @@ from db import get_connection
 from api import get_matches
 
 st.set_page_config(page_title="Cricbuzz LiveStats", layout="wide")
+
 st.sidebar.title("🏏 Cricbuzz Dashboard")
 st.sidebar.write("Real-time Cricket Analytics")
+
 # =========================
 # CREATE TABLES
 # =========================
@@ -19,7 +21,8 @@ def create_tables():
             id SERIAL PRIMARY KEY,
             team1 TEXT,
             team2 TEXT,
-            status TEXT
+            status TEXT,
+            UNIQUE(team1, team2, status)
         )
         """)
 
@@ -50,17 +53,24 @@ menu = st.sidebar.selectbox(
 # =========================
 # HOME
 # =========================
-# =========================
-# HOME
-# =========================
 if menu == "Home":
     st.title("🏏 Cricbuzz LiveStats Dashboard")
 
     conn = get_connection()
 
     if conn:
-        matches_count = pd.read_sql("SELECT COUNT(*) FROM matches", conn).iloc[0][0]
-        players_count = pd.read_sql("SELECT COUNT(*) FROM players", conn).iloc[0][0]
+        try:
+            df_matches = pd.read_sql("SELECT COUNT(*) as count FROM matches", conn)
+            matches_count = df_matches.iloc[0]["count"]
+        except:
+            matches_count = 0
+
+        try:
+            df_players = pd.read_sql("SELECT COUNT(*) as count FROM players", conn)
+            players_count = df_players.iloc[0]["count"]
+        except:
+            players_count = 0
+
         conn.close()
 
         col1, col2 = st.columns(2)
@@ -96,9 +106,7 @@ elif menu == "Live Matches":
     df = pd.DataFrame(matches_list[:5])
     st.table(df)
 
-    # ✅ FIXED SAVE BUTTON
     if st.button("Save Matches"):
-
         conn = get_connection()
 
         if conn:
@@ -106,14 +114,14 @@ elif menu == "Live Matches":
 
             for match in matches_list[:5]:
                 cur.execute("""
-INSERT INTO matches (team1, team2, status)
-VALUES (%s, %s, %s)
-ON CONFLICT (team1, team2, status) DO NOTHING
-""", (
-    match["team1"],
-    match["team2"],
-    match["status"]
-))
+                INSERT INTO matches (team1, team2, status)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (team1, team2, status) DO NOTHING
+                """, (
+                    match["team1"],
+                    match["team2"],
+                    match["status"]
+                ))
 
             conn.commit()
             conn.close()
@@ -173,7 +181,7 @@ elif menu == "SQL Analytics":
             "All-rounders Performance",
             "Team Total Runs",
             "Top Wicket Takers",
-            "Top All-Rounder (Combined Score)"   # ✅ NEW
+            "Top All-Rounder (Combined Score)"
         ])
 
         if option == "Matches per Team":
@@ -220,7 +228,7 @@ elif menu == "SQL Analytics":
             LIMIT 5;
             """
 
-        elif option == "Top All-Rounder (Combined Score)":   # ✅ NEW LOGIC
+        else:
             query = """
             SELECT name,
                    (runs * 0.01 + wickets * 2) AS performance_score
@@ -234,7 +242,6 @@ elif menu == "SQL Analytics":
 
         st.dataframe(df)
 
-        # 🔥 INSIGHT LINE
         if not df.empty:
             st.write(f"📊 Insight: Top result → {df.iloc[0][0]}")
 
@@ -272,7 +279,6 @@ elif menu == "CRUD":
         else:
             st.error("Database not connected")
 
-    # DELETE
     st.subheader("Delete Player")
     player_id = st.number_input("Player ID", 0)
 
@@ -309,7 +315,6 @@ elif menu == "Graphs":
         st.subheader("🎯 Top Wicket Takers")
         st.bar_chart(df_wickets.set_index("name"))
 
-        # Insight
         if not df_runs.empty:
             st.write(f"🔥 Insight: {df_runs.iloc[0]['name']} is the highest run scorer")
 
