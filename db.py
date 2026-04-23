@@ -4,10 +4,10 @@ import streamlit as st
 def get_connection():
     try:
         conn = psycopg2.connect(
-            host="localhost",
-            database="cricket_db",
-            user="postgres",
-            password="1234567",  # ⚠️ replace
+            host=st.secrets["DB_HOST"],
+            database=st.secrets["DB_NAME"],
+            user=st.secrets["DB_USER"],
+            password=st.secrets["DB_PASSWORD"],
             port="5432"
         )
         return conn
