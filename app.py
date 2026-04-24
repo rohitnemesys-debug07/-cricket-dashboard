@@ -94,29 +94,41 @@ if menu == "Home":
 # =========================
 elif menu == "Live Matches":
 
-    with st.spinner("Fetching live matches..."):
-        data = get_matches()
+    data = get_matches()
 
     matches_list = []
 
     for match in data:
-        name = match.get("name", "")
+
+        # 🟢 Match Name
+        name = match.get("name", "Unknown Match")
 
         if " vs " in name:
             team1, team2 = name.split(" vs ")
         else:
             team1, team2 = name, ""
 
+        # 🟢 FIXED STATUS LOGIC
+        status = (
+            match.get("status")
+            or match.get("matchStatus")
+            or match.get("statusText")
+            or match.get("state")
+            or "No status available"
+        )
+
         matches_list.append({
             "team1": team1,
             "team2": team2,
-            "status": match.get("status", "")
+            "status": status
         })
 
-    df = pd.DataFrame(matches_list[:10])
-    st.subheader("🏏 Live Matches")
-    st.table(df)
+    df = pd.DataFrame(matches_list)
 
+    st.subheader("🏏 Live Matches")
+    st.dataframe(df)
+
+    # SAVE BUTTON
     if st.button("Save Matches"):
 
         conn = get_connection()
@@ -124,11 +136,10 @@ elif menu == "Live Matches":
         if conn:
             cur = conn.cursor()
 
-            for match in matches_list[:10]:
+            for match in matches_list:
                 cur.execute("""
-                INSERT INTO matches (team1, team2, status)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (team1, team2, status) DO NOTHING
+                    INSERT INTO matches (team1, team2, status)
+                    VALUES (%s, %s, %s)
                 """, (
                     match["team1"],
                     match["team2"],
@@ -139,11 +150,6 @@ elif menu == "Live Matches":
             conn.close()
 
             st.success("✅ Saved Successfully!")
-
-        else:
-            st.error("Database not connected")
-    if df.empty:
-      st.warning("⚠️ Live API unavailable → Showing sample data")
 # =========================
 # SAVED MATCHES
 # =========================
