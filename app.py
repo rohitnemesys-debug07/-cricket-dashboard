@@ -100,56 +100,28 @@ elif menu == "Live Matches":
 
     for match in data:
 
-        # 🟢 Match Name
-        name = match.get("name", "Unknown Match")
+        name = match.get("name", "")
+        status = match.get("status", "")
+        venue = match.get("venue", "N/A")
+        date = match.get("date", "")
 
         if " vs " in name:
             team1, team2 = name.split(" vs ")
         else:
             team1, team2 = name, ""
 
-        # 🟢 FIXED STATUS LOGIC
-        status = (
-            match.get("status")
-            or match.get("matchStatus")
-            or match.get("statusText")
-            or match.get("state")
-            or "No status available"
-        )
-
         matches_list.append({
-            "team1": team1,
-            "team2": team2,
-            "status": status
+            "Team 1": team1,
+            "Team 2": team2,
+            "Status": status,
+            "Venue": venue,
+            "Date": date
         })
 
-    df = pd.DataFrame(matches_list)
+    df = pd.DataFrame(matches_list[:10])
 
     st.subheader("🏏 Live Matches")
     st.dataframe(df)
-
-    # SAVE BUTTON
-    if st.button("Save Matches"):
-
-        conn = get_connection()
-
-        if conn:
-            cur = conn.cursor()
-
-            for match in matches_list:
-                cur.execute("""
-                    INSERT INTO matches (team1, team2, status)
-                    VALUES (%s, %s, %s)
-                """, (
-                    match["team1"],
-                    match["team2"],
-                    match["status"]
-                ))
-
-            conn.commit()
-            conn.close()
-
-            st.success("✅ Saved Successfully!")
 # =========================
 # SAVED MATCHES
 # =========================
