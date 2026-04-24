@@ -132,34 +132,36 @@ if menu == "Home":
 # =========================
 elif menu == "Live Matches":
 
+    st.subheader("🏏 Live Matches")
+
     data = get_matches()
 
-    matches_list = []
-
-    for match in data:
+    for match in data[:6]:
 
         name = match.get("name", "")
-        status = match.get("status", "")
+        status = match.get("status", "Unknown")
         venue = match.get("venue", "N/A")
-        date = match.get("date", "")
 
         if " vs " in name:
             team1, team2 = name.split(" vs ")
         else:
             team1, team2 = name, ""
 
-        matches_list.append({
-            "Team 1": team1,
-            "Team 2": team2,
-            "Status": status,
-            "Venue": venue,
-            "Date": date
-        })
+        
+        if "Live" in status or "Progress" in status:
+            color = "green"
+        elif "Upcoming" in status:
+            color = "orange"
+        else:
+            color = "red"
 
-    df = pd.DataFrame(matches_list[:10])
-
-    st.subheader("🏏 Live Matches")
-    st.dataframe(df)
+        st.markdown(f"""
+        <div class="card">
+            <h3>{team1} 🆚 {team2}</h3>
+            <p><b>Status:</b> <span style="color:{color};">{status}</span></p>
+            <p><b>Venue:</b> {venue}</p>
+        </div>
+        """, unsafe_allow_html=True)
 # =========================
 # SAVED MATCHES
 # =========================
@@ -298,7 +300,26 @@ elif menu == "SQL Practice":
 # =========================
 elif menu == "CRUD":
 
-    st.subheader("Add Player")
+    st.title("🛠️ Player Management (CRUD)")
+
+    conn = get_connection()
+
+    # =========================
+    # READ (SHOW DATA)
+    # =========================
+    if conn:
+        df = pd.read_sql("SELECT * FROM players", conn)
+        st.subheader("📋 Existing Players")
+        st.dataframe(df)
+    else:
+        st.error("Database not connected")
+
+    st.divider()
+
+    # =========================
+    # CREATE
+    # =========================
+    st.subheader("➕ Add Player")
 
     name = st.text_input("Name")
     team = st.text_input("Team")
@@ -307,19 +328,61 @@ elif menu == "CRUD":
     wickets = st.number_input("Wickets", 0)
 
     if st.button("Add Player"):
-        conn = get_connection()
-
         if conn:
             cur = conn.cursor()
             cur.execute("""
-            INSERT INTO players (name, team, role, runs, wickets)
-            VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO players (name, team, role, runs, wickets)
+                VALUES (%s, %s, %s, %s, %s)
             """, (name, team, role, runs, wickets))
-
             conn.commit()
-            conn.close()
-
             st.success("✅ Player Added")
+
+    st.divider()
+
+    # =========================
+    # UPDATE
+    # =========================
+    st.subheader("✏️ Update Player")
+
+    if conn:
+        player_ids = df["id"].tolist()
+
+        if player_ids:
+            selected_id = st.selectbox("Select Player ID", player_ids)
+
+            new_runs = st.number_input("New Runs", 0)
+            new_wickets = st.number_input("New Wickets", 0)
+
+            if st.button("Update Player"):
+                cur = conn.cursor()
+                cur.execute("""
+                    UPDATE players
+                    SET runs=%s, wickets=%s
+                    WHERE id=%s
+                """, (new_runs, new_wickets, selected_id))
+                conn.commit()
+                st.success("✅ Updated Successfully")
+        else:
+            st.warning("No players available to update")
+
+    st.divider()
+
+    # =========================
+    # DELETE
+    # =========================
+    st.subheader("❌ Delete Player")
+
+    if conn and not df.empty:
+        delete_id = st.selectbox("Select Player ID to Delete", df["id"].tolist())
+
+        if st.button("Delete Player"):
+            cur = conn.cursor()
+            cur.execute("DELETE FROM players WHERE id=%s", (delete_id,))
+            conn.commit()
+            st.success("✅ Deleted Successfully")
+
+    if conn:
+        conn.close()
 
 # =========================
 # GRAPHS
