@@ -3,8 +3,46 @@ import pandas as pd
 from db import get_connection
 from api import get_matches
 
-st.set_page_config(page_title="Cricbuzz LiveStats", layout="wide")
+# ✅ STEP 1: Page config (ONLY ONCE)
+st.set_page_config(page_title="🏏 Cricbuzz Pro Dashboard", layout="wide")
 
+# ✅ STEP 2: PASTE CSS HERE (IMPORTANT)
+st.markdown("""
+<style>
+
+/* MAIN BACKGROUND */
+[data-testid="stAppViewContainer"] {
+    background-color: #0E1117;
+    color: white;
+}
+
+/* SIDEBAR */
+[data-testid="stSidebar"] {
+    background-color: #111827;
+}
+
+/* TEXT */
+[data-testid="stMarkdownContainer"] {
+    color: white;
+}
+
+/* CARD */
+.card {
+    background-color: #1c1f26;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+}
+
+/* HEADINGS */
+h1, h2, h3 {
+    color: #00FFAA;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ✅ STEP 3: THEN your sidebar
 st.sidebar.title("🏏 Cricbuzz Dashboard")
 st.sidebar.write("Real-time Cricket Analytics")
 
